@@ -1,0 +1,186 @@
+{% extends 'base.html' %}
+{% block title %}{{ item.title }} — AuctionHouse{% endblock %}
+
+{% block content %}
+<style>
+  .back { font-family: var(--font-ui); font-size: 0.82rem; color: var(--text-muted);
+          text-decoration: none; display: inline-block; margin-bottom: 1.25rem; }
+  .back:hover { color: var(--text); }
+
+  .item-layout { display: grid; grid-template-columns: 1fr 320px; gap: 2rem; align-items: start; }
+  @media (max-width: 680px) { .item-layout { grid-template-columns: 1fr; } }
+
+  .item-main h1 { font-size: 1.9rem; line-height: 1.2; margin-bottom: 0.5rem; }
+  .item-meta {
+    display: flex; gap: 1rem; align-items: center; margin-bottom: 1.25rem;
+    font-family: var(--font-ui); font-size: 0.82rem; color: var(--text-muted);
+  }
+  .item-desc { line-height: 1.7; color: #333; margin-bottom: 1.5rem; }
+
+  .bid-stats {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+    background: var(--border); border: 1px solid var(--border); border-radius: var(--radius);
+    overflow: hidden; margin-bottom: 1.25rem;
+  }
+  .stat { background: var(--surface); padding: 1rem 1.25rem; }
+  .stat .label { font-family: var(--font-ui); font-size: 0.72rem; text-transform: uppercase;
+                 letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 0.25rem; }
+  .stat .value { font-size: 1.4rem; font-weight: bold; }
+  .stat .value.price { color: var(--accent); }
+
+  .bid-form-card { background: var(--surface); border: 1px solid var(--border);
+                   border-radius: var(--radius); padding: 1.25rem; }
+  .bid-form-card h3 { font-size: 1.1rem; margin-bottom: 1rem;
+                      padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
+
+  .login-prompt {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 1.25rem; text-align: center;
+  }
+  .login-prompt p { font-family: var(--font-ui); font-size: 0.88rem;
+                    color: var(--text-muted); margin-bottom: 1rem; }
+
+  .bid-history h3 { font-size: 1.1rem; margin-bottom: 1rem; margin-top: 2rem;
+                    padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
+  .bid-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0.65rem 0; border-bottom: 1px solid var(--border);
+    font-family: var(--font-ui); font-size: 0.85rem;
+  }
+  .bid-row:last-child { border-bottom: none; }
+  .bid-row .bidder { color: var(--text-muted); }
+  .bid-row .amount { font-weight: bold; color: var(--text); }
+  .bid-row .time { font-size: 0.78rem; color: var(--text-muted); }
+
+  .closed-banner {
+    background: #f8d7da; border: 1px solid #f5c6cb; border-radius: var(--radius);
+    padding: 1rem 1.25rem; margin-bottom: 1.25rem; font-family: var(--font-ui); font-size: 0.9rem;
+    color: #721c24;
+  }
+  .winner { font-weight: bold; font-size: 1rem; }
+</style>
+
+<a href="{{ url_for('index') }}" class="back">← Back to auctions</a>
+
+<div class="item-layout">
+  <div class="item-main">
+    <div class="item-meta">
+      <span class="badge badge-{{ item.status }}">{{ item.status }}</span>
+      <span>{{ item.category.name }}</span>
+      <span>Listed by {{ item.seller.username }}</span>
+    </div>
+    <h1>{{ item.title }}</h1>
+    <p class="item-desc">{{ item.description }}</p>
+
+    <div class="bid-stats">
+      <div class="stat">
+        <div class="label">Current Price</div>
+        <div class="value price">${{ '%.2f'|format(item.current_price()) }}</div>
+      </div>
+      <div class="stat">
+        <div class="label">Total Bids</div>
+        <div class="value">{{ item.bid_count() }}</div>
+      </div>
+      <div class="stat">
+        <div class="label">Starting Price</div>
+        <div class="value">${{ '%.2f'|format(item.starting_price) }}</div>
+      </div>
+      <div class="stat">
+        <div class="label">Ends</div>
+        <div class="value" style="font-size:1rem;" data-endtime="{{ (item.end_time|localtime).strftime('%Y-%m-%dT%H:%M:%S') }}">{{ (item.end_time|localtime).strftime('%b %d, %Y %I:%M %p') }}</div>
+      </div>
+    </div>
+
+    {% if not item.is_open() %}
+      <div class="closed-banner">
+        This auction has ended.
+        {% if bids %}
+          <div class="winner">Winner: {{ bids[0].bidder.username }} — ${{ '%.2f'|format(bids[0].amount) }}</div>
+        {% else %}
+          No bids were placed.
+        {% endif %}
+      </div>
+    {% endif %}
+
+    {% if bids %}
+    <div class="bid-history">
+      <h3>Bid History</h3>
+      {% for bid in bids %}
+        <div class="bid-row">
+          <span class="bidder">{{ bid.bidder.username }}</span>
+          <span class="amount">${{ '%.2f'|format(bid.amount) }}</span>
+          <span class="time">{{ bid.placed_at.strftime('%b %d, %I:%M %p') }}</span>
+        </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <div>
+    {% if item.is_open() %}
+      {% if current_user.is_authenticated %}
+        <div class="bid-form-card">
+          <h3>Place a Bid</h3>
+          <p style="font-family:var(--font-ui);font-size:0.82rem;color:var(--text-muted);margin-bottom:1rem;">
+            Bidding as <strong>{{ current_user.username }}</strong> —
+            Minimum bid: <strong>${{ '%.2f'|format(item.current_price() + 0.01) }}</strong>
+          </p>
+          <form method="POST">
+            {{ form.hidden_tag() }}
+            <div class="form-group">
+              {{ form.amount.label }}
+              {{ form.amount(placeholder='0.00', step='0.01', min=item.current_price()+0.01) }}
+              {% for e in form.amount.errors %}<div class="form-error">{{ e }}</div>{% endfor %}
+            </div>
+            {{ form.submit(class='btn btn-primary', style='width:100%') }}
+          </form>
+        </div>
+
+        <form method="POST" action="{{ url_for('close_item', item_id=item.id) }}" style="margin-top:0.75rem;">
+          {{ form.hidden_tag() }}
+          <button type="submit" class="btn btn-outline" style="width:100%;color:var(--text-muted);"
+                  onclick="return confirm('Close this auction now?')">Close Auction</button>
+        </form>
+      {% else %}
+        <div class="login-prompt">
+          <p>You must be logged in to place a bid.</p>
+          <a href="{{ url_for('login', next=request.url) }}" class="btn btn-primary" style="width:100%;display:block;text-align:center;">Log In to Bid</a>
+          <br>
+          <a href="{{ url_for('register') }}" class="btn btn-outline" style="width:100%;display:block;text-align:center;">Create an Account</a>
+        </div>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+
+<script>
+  function updateCountdowns() {
+    document.querySelectorAll('[data-endtime]').forEach(el => {
+      {% if item.status == 'closed' %}
+        el.textContent = 'Auction ended';
+        el.style.color = 'var(--accent)';
+        return;
+      {% endif %}
+      const end = new Date(el.dataset.endtime);
+      const now = new Date();
+      const diff = end - now;
+      if (diff <= 0) {
+        el.textContent = 'Auction ended';
+        el.style.color = 'var(--accent)';
+        return;
+      }
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      if (h > 24) {
+        const d = Math.floor(h / 24);
+        el.textContent = `Ends in ${d}d ${h % 24}h`;
+      } else {
+        el.textContent = `Ends in ${h}h ${m}m ${s}s`;
+      }
+    });
+  }
+  updateCountdowns();
+  setInterval(updateCountdowns, 1000);
+</script>
+{% endblock %}
